@@ -16,16 +16,11 @@ from pydantic import BaseModel, ValidationError
 
 
 SANDBOX_MODE = os.getenv("STRIX_SANDBOX_MODE", "false").lower() == "true"
-if not SANDBOX_MODE:
-    raise RuntimeError("Tool server should only run in sandbox mode (STRIX_SANDBOX_MODE=true)")
 
-parser = argparse.ArgumentParser(description="Start Strix tool server")
-parser.add_argument("--token", required=True, help="Authentication token")
-parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")  # nosec
-parser.add_argument("--port", type=int, required=True, help="Port to bind to")
-
-args = parser.parse_args()
-EXPECTED_TOKEN = args.token
+# EXPECTED_TOKEN is set when the module is started as a script (inside __main__)
+# Keeping it None at import time prevents accidental argument parsing and
+# fatal errors when multiprocessing spawns new interpreter processes
+EXPECTED_TOKEN: str | None = None
 
 app = FastAPI()
 security = HTTPBearer()
@@ -192,14 +187,38 @@ def signal_handler(_signum: int, _frame: Any) -> None:
     sys.exit(0)
 
 
-if hasattr(signal, "SIGPIPE"):
-    signal.signal(signal.SIGPIPE, signal.SIG_IGN)
+def _setup_signals_and_run(host: str, port: int, token: str) -> None:
+    """Configure globals, signal handlers and start the uvicorn server.
 
-signal.signal(signal.SIGTERM, signal_handler)
-signal.signal(signal.SIGINT, signal_handler)
+    This is isolated to avoid executing argument parsing or signal setup
+    at module import time which causes issues on platforms using
+    multiprocessing 'spawn' (notably Windows).
+    """
 
-if __name__ == "__main__":
+    global EXPECTED_TOKEN
+    EXPECTED_TOKEN = token
+
+    if not SANDBOX_MODE:
+        raise RuntimeError("Tool server should only run in sandbox mode (STRIX_SANDBOX_MODE=true)")
+
+    # Ignore SIGPIPE where available
+    if hasattr(signal, "SIGPIPE"):
+        signal.signal(signal.SIGPIPE, signal.SIG_IGN)
+
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
     try:
-        uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+        uvicorn.run(app, host=host, port=port, log_level="info")
     finally:
         cleanup_all_agents()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Start Strix tool server")
+    parser.add_argument("--token", required=True, help="Authentication token")
+    parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")  # nosec
+    parser.add_argument("--port", type=int, required=True, help="Port to bind to")
+
+    args = parser.parse_args()
+    _setup_signals_and_run(host=args.host, port=args.port, token=args.token)
