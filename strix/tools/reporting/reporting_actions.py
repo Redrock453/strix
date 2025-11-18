@@ -133,4 +133,3 @@ def add_vulnerability_attachment(
         }
     except (ValueError, TypeError) as e:
         return {"success": False, "message": f"Failed to add attachment: {e!s}"}
-

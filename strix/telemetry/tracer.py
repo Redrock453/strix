@@ -302,16 +302,10 @@ class Tracer:
                                             att_file.write(content)
 
                                     # Add reference in the markdown
-                                    relative_path = (
-                                        f"{report['id']}_attachments/{filename}"
-                                    )
-                                    f.write(
-                                        f"- [{filename}]({relative_path}) "
-                                        f"({content_type})\n"
-                                    )
+                                    relative_path = f"{report['id']}_attachments/{filename}"
+                                    f.write(f"- [{filename}]({relative_path}) ({content_type})\n")
                                     logger.info(
-                                        f"Saved attachment '{filename}' "
-                                        f"for report {report['id']}"
+                                        f"Saved attachment '{filename}' for report {report['id']}"
                                     )
                                 except (ValueError, OSError) as e:
                                     logger.exception(
@@ -319,9 +313,7 @@ class Tracer:
                                         filename,
                                         report["id"],
                                     )
-                                    f.write(
-                                        f"- {filename} (failed to save: {e})\n"
-                                    )
+                                    f.write(f"- {filename} (failed to save: {e})\n")
 
                 vuln_csv_file = run_dir / "vulnerabilities.csv"
                 with vuln_csv_file.open("w", encoding="utf-8", newline="") as f:
