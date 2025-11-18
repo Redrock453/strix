@@ -1,3 +1,4 @@
+import base64
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
@@ -73,6 +74,7 @@ class Tracer:
         title: str,
         content: str,
         severity: str,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> str:
         report_id = f"vuln-{len(self.vulnerability_reports) + 1:04d}"
 
@@ -82,6 +84,7 @@ class Tracer:
             "content": content.strip(),
             "severity": severity.lower().strip(),
             "timestamp": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "attachments": attachments or [],
         }
 
         self.vulnerability_reports.append(report)
@@ -93,6 +96,43 @@ class Tracer:
             )
 
         return report_id
+
+    def add_attachment_to_report(
+        self,
+        report_id: str,
+        filename: str,
+        content: str,
+        content_type: str = "text/plain",
+        encoding: str = "utf-8",
+    ) -> bool:
+        """
+        Add an attachment to an existing vulnerability report.
+
+        Args:
+            report_id: The ID of the vulnerability report
+            filename: Name of the file to attach
+            content: File content (base64 encoded for binary files)
+            content_type: MIME type of the file (e.g., 'image/png', 'text/plain')
+            encoding: Encoding type ('utf-8' for text, 'base64' for binary)
+
+        Returns:
+            bool: True if attachment was added successfully, False otherwise
+        """
+        for report in self.vulnerability_reports:
+            if report["id"] == report_id:
+                attachment = {
+                    "filename": filename,
+                    "content": content,
+                    "content_type": content_type,
+                    "encoding": encoding,
+                    "timestamp": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
+                }
+                report["attachments"].append(attachment)
+                logger.info(f"Added attachment '{filename}' to report {report_id}")
+                return True
+
+        logger.warning(f"Report {report_id} not found, could not add attachment")
+        return False
 
     def set_final_scan_result(
         self,
@@ -234,6 +274,54 @@ class Tracer:
                         f.write(f"**Found:** {report['timestamp']}\n\n")
                         f.write("## Description\n\n")
                         f.write(f"{report['content']}\n")
+
+                        # Save attachments if present
+                        if report.get("attachments"):
+                            f.write("\n## Attachments\n\n")
+                            attachments_dir = vuln_dir / f"{report['id']}_attachments"
+                            attachments_dir.mkdir(exist_ok=True)
+
+                            for idx, attachment in enumerate(report["attachments"]):
+                                filename = attachment.get("filename", f"attachment_{idx}")
+                                content = attachment.get("content", "")
+                                encoding_type = attachment.get("encoding", "utf-8")
+                                content_type = attachment.get("content_type", "text/plain")
+
+                                # Save the attachment file
+                                attachment_path = attachments_dir / filename
+                                try:
+                                    if encoding_type == "base64":
+                                        # Decode base64 content and save as binary
+                                        with attachment_path.open("wb") as att_file:
+                                            att_file.write(base64.b64decode(content))
+                                    else:
+                                        # Save as text
+                                        with attachment_path.open(
+                                            "w", encoding="utf-8"
+                                        ) as att_file:
+                                            att_file.write(content)
+
+                                    # Add reference in the markdown
+                                    relative_path = (
+                                        f"{report['id']}_attachments/{filename}"
+                                    )
+                                    f.write(
+                                        f"- [{filename}]({relative_path}) "
+                                        f"({content_type})\n"
+                                    )
+                                    logger.info(
+                                        f"Saved attachment '{filename}' "
+                                        f"for report {report['id']}"
+                                    )
+                                except (ValueError, OSError) as e:
+                                    logger.exception(
+                                        "Failed to save attachment '%s' for report %s",
+                                        filename,
+                                        report["id"],
+                                    )
+                                    f.write(
+                                        f"- {filename} (failed to save: {e})\n"
+                                    )
 
                 vuln_csv_file = run_dir / "vulnerabilities.csv"
                 with vuln_csv_file.open("w", encoding="utf-8", newline="") as f:

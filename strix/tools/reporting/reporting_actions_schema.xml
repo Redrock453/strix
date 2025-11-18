@@ -27,4 +27,42 @@ DO NOT USE:
       <description>Response containing success status and message</description>
     </returns>
   </tool>
+
+  <tool name="add_vulnerability_attachment">
+    <description>Add an attachment (file) to an existing vulnerability report.
+
+Use this tool to attach evidence files to vulnerability reports, such as:
+- Proof-of-concept exploit scripts
+- Screenshots demonstrating the vulnerability
+- Network traffic captures (pcap files)
+- Log files showing exploitation
+- Sample payloads
+- Configuration files
+
+For text files, provide the content directly with encoding='utf-8'.
+For binary files (images, executables, etc.), provide base64-encoded content with encoding='base64'.
+
+The attachment will be saved alongside the vulnerability report and referenced in the report markdown file.
+</description>
+    <parameters>
+      <parameter name="report_id" type="string" required="true">
+        <description>The ID of the vulnerability report to attach the file to (e.g., 'vuln-0001')</description>
+      </parameter>
+      <parameter name="filename" type="string" required="true">
+        <description>Name of the file to attach (e.g., 'exploit.py', 'screenshot.png', 'capture.pcap')</description>
+      </parameter>
+      <parameter name="content" type="string" required="true">
+        <description>File content. For text files, provide the content as-is. For binary files, provide base64-encoded content.</description>
+      </parameter>
+      <parameter name="content_type" type="string" required="false">
+        <description>MIME type of the file (e.g., 'text/plain', 'image/png', 'application/x-python'). Defaults to 'text/plain'.</description>
+      </parameter>
+      <parameter name="encoding" type="string" required="false">
+        <description>Encoding type: 'utf-8' for text files or 'base64' for binary files. Defaults to 'utf-8'.</description>
+      </parameter>
+    </parameters>
+    <returns type="Dict[str, Any]">
+      <description>Response containing success status, message, report_id, and filename</description>
+    </returns>
+  </tool>
 </tools>
